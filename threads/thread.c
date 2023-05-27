@@ -28,6 +28,8 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -109,6 +111,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list); /* alarm clock 추가 */
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -540,14 +543,14 @@ do_schedule(int status) {
 
 static void
 schedule (void) {
-	struct thread *curr = running_thread ();
-	struct thread *next = next_thread_to_run ();
+	struct thread *curr = running_thread (); // 현재 돌고 있는 스레드를 curr 에 넣어줌
+	struct thread *next = next_thread_to_run ();// 다음에 실행시킬 스레드를 가져옴
 
 	ASSERT (intr_get_level () == INTR_OFF);
-	ASSERT (curr->status != THREAD_RUNNING);
+	ASSERT (curr->status != THREAD_RUNNING);// 앞에서 스레드 블록으로 변경해줬으니 알람 안울린다
 	ASSERT (is_thread (next));
 	/* Mark us as running. */
-	next->status = THREAD_RUNNING;
+	next->status = THREAD_RUNNING; //다음에 돌릴 스레드를 러닝으로 변경
 
 	/* Start new time slice. */
 	thread_ticks = 0;
@@ -587,4 +590,48 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+/* alarm clock 추가 */
+void
+thread_sleep(int64_t ticks) {
+	/* if the current thread is not idle thread,
+	change the state of the caller thread to BLOCKED,
+	store the local tick to wake up,
+	update the global tick if necessary,
+	and call schedule() */
+  /* When you manipulate thread list, disable interrupt! */
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  struct thread *curr = thread_current();
+  if(curr != idle_thread) { // 현재 스레드가 idle 스레드가 아닐 경우
+	curr->wakeup_tick = ticks; // 현재 스레드의 깨어날 ticks를 지정
+	list_remove(&curr->elem);
+	list_push_back(&sleep_list, &curr->elem); // sleep할 스레드(curr)를 sleep_list에 삽입
+	// update the global tick if necessary
+	do_schedule (THREAD_BLOCKED);
+	intr_set_level (old_level); // 다음 작업을 진행할 스레드를 불러오기 위해 schedule()을 호출
+  }
+}
+
+void wakeup(int64_t ticks) {
+	if (list_empty(&sleep_list)) {
+		return;
+	}
+	struct list_elem * curr_elem = list_front(&sleep_list);
+	while (curr_elem != list_tail(&sleep_list)) {
+		struct thread * curr_thread = list_entry (curr_elem, struct thread, elem);
+		if (curr_thread->wakeup_tick <= ticks) {
+			curr_thread->wakeup_tick = NULL;
+			curr_thread->status = THREAD_READY;
+			list_remove(curr_elem);
+			list_push_back(&ready_list, curr_elem);
+			if (list_empty(&sleep_list)) {
+				return;
+			}
+			curr_elem = list_front(&sleep_list);
+		}
+		else
+			curr_elem = list_next(curr_elem);
+	}
 }
