@@ -70,7 +70,7 @@ timer_calibrate (void) {
 	printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
 }
 
-/* Returns the number of timer ticks since the OS booted. */
+/* 현재의 ticks를 반환하는 함수 */
 int64_t
 timer_ticks (void) {
 	enum intr_level old_level = intr_disable ();
@@ -80,31 +80,22 @@ timer_ticks (void) {
 	return t;
 }
 
-/* Returns the number of timer ticks elapsed since THEN, which
-   should be a value once returned by timer_ticks(). */
+/* 특정 시간 이후부터 경과된 ticks를 반환하는 함수 */
 int64_t
 timer_elapsed (int64_t then) {
 	return timer_ticks () - then;
 }
 
-/* Suspends execution for approximately TICKS timer ticks. */
-// void
-// timer_sleep (int64_t ticks) {
-// 	int64_t start = timer_ticks ();
-
-// 	ASSERT (intr_get_level () == INTR_ON);
-// 	while (timer_elapsed (start) < ticks)
-// 		thread_yield ();
-// }
-
+/* 현재 스레드를 ticks만큼 재우는 함수 */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+	int64_t start = timer_ticks (); // 현재의 ticks를 start에 저장
 
 	ASSERT (intr_get_level () == INTR_ON);
-		/* alarm clock 추가 */
-		if(timer_elapsed (start) < ticks)
-			thread_sleep(start + ticks);
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
+		if(timer_elapsed (start) < ticks) // start 이후부터 경과된 tick가 ticks보다 작은 경우
+			thread_sleep (start + ticks); // 현재 스레드를 깨워야 할 시간(start + ticks)까지 재우는 thread_sleep() 함수 호출
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -131,24 +122,18 @@ timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+
+/* 타이머 인터럽트 핸들러 함수 */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
-	ticks++; // 야가 글로벌 틱스다이
+	ticks++;
 	thread_tick ();
-	/* code to add: 
-	check sleep list and the global tick.
-	find any threads to wake up,
-	move them to the ready list if necessary.
-	update the global tick.
-	*/
-	// sleep list와 global tick을 어떻게 체크하고 캐워야할 스레드를 어떻게 뽑아낼 것인가?
-	// 방법 1. sleep list에 있는 스레드를 탐색하기 위해 cur_idx 변수를 선언 및 0을 초기화
-	// while문으로 sleep list를 탐색
-	// 배열방식으로 접근을 했기때문에 리스트는 인덱스로 값을 찾을 수가 없다
-	// 그래서 어떤 방법을 이용해서 로직을 짜야할까?
-	wakeup(ticks);
-	
+
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
+	if(get_next_tick_to_awake () <= ticks) { // 스레드의 tick이 현재의 ticks보다 작거나 같은 경우(=깨워야 할 스레드가 존재)
+		thread_wakeup (ticks); // 깨워야 할 스레드를 모두 깨워주는 thread_wakeup() 함수 호출
+	}
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

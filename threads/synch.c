@@ -65,8 +65,11 @@ sema_down (struct semaphore *sema) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
+	while (sema->value == 0) { // 사용 가능한 공유자원이 없다면
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+		// list_insert_ordered() 함수를 호출하여 sema의 waiters 리스트의 스레드와 현재 스레드의 우선순위를 비교하는 cmp_priority() 함수를 통해 리스트의 적절한 위치에 현재 스레드를 추가
+		list_insert_ordered (&sema->waiters, &thread_current ()->elem, cmp_priority, NULL);
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
 		thread_block ();
 	}
 	sema->value--;
@@ -109,10 +112,18 @@ sema_up (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
-					struct thread, elem));
+	if (!list_empty (&sema->waiters)) { // 괄호처리 안해주면, list_pop_front에서 터진다.
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+// 		// waiters 리스트에 있던 동안 우선순위에 변경이 생겼을 수도 있으므로 waiters 리스트를 내림차순으로 정렬
+		struct list_elem * max_elem = list_min (&sema->waiters, cmp_priority, NULL); // waiters 리스트에서 우선순위가 가장 높은 스레드 검색
+		list_remove (max_elem); // waiters 리스트에서 우선순위가 가장 높은 스레드를 waiters 리스트에서 삭제
+		thread_unblock (list_entry (max_elem, struct thread, elem)); // thread_unbolck() 함수를 호출하여, 삭제된 스레드의 상태를 READY로 바꾸고, ready 리스트에 추가
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+	}
 	sema->value++;
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+	test_max_priority (); // 현재 스레드의 우선순위와 waiters_list에서 가장 높은 우선순위를 가진 스레드의 우선순위와 비교하는 test_max_priority() 함수 호출
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
 	intr_set_level (old_level);
 }
 
@@ -188,7 +199,22 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+	struct thread *cur = thread_current ();
+	if (lock->holder) {
+        cur->wait_on_lock = lock; // 현재 스레드가 어떤 lock 기다리고 있는지 입력
+        list_insert_ordered(&lock->holder->donations, &cur->donation_elem, 
+			cmp_donate_priority, 0);
+        donate_priority(); 	
+    }
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+
 	sema_down (&lock->semaphore);
+
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+	cur->wait_on_lock = NULL;
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+
 	lock->holder = thread_current ();
 }
 
@@ -221,6 +247,11 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+	remove_with_lock(lock);
+	refresh_priority();
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
@@ -302,9 +333,14 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (!intr_context ());
 	ASSERT (lock_held_by_current_thread (lock));
 
-	if (!list_empty (&cond->waiters))
-		sema_up (&list_entry (list_pop_front (&cond->waiters),
-					struct semaphore_elem, elem)->semaphore);
+	if (!list_empty (&cond->waiters)) {
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+		// waiters 리스트에 있던 동안 우선순위에 변경이 생겼을 수도 있으므로 조건변수 waiters 리스트를 내림차순으로 정렬
+		struct list_elem * max_elem = list_min (&cond->waiters, cmp_sem_priority, NULL);// waiters 리스트에서 우선순위가 가장 높은 스레드 검색
+		list_remove (max_elem);// waiters 리스트에서 우선순위가 가장 높은 스레드를 waiters 리스트에서 삭제
+		sema_up (&list_entry (max_elem, struct semaphore_elem, elem)->semaphore); // sema_up 함수 호출
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+	}
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -321,3 +357,68 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 	while (!list_empty (&cond->waiters))
 		cond_signal (cond, lock);
 }
+
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+/* semaphore_elem가 나타내는 세마포어의 waiters 리스트의 맨 앞 스레드끼리 우선순위를 비교하는 함수 */
+bool
+cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	struct semaphore_elem *sa = list_entry(a, struct semaphore_elem, elem);
+	struct semaphore_elem *sb = list_entry(b, struct semaphore_elem, elem);
+
+	struct list *wa = &(sa->semaphore.waiters);
+	struct list *wb = &(sb->semaphore.waiters);
+
+	// 세마포어의 waters 리스트는 이미 내림차순으로 정렬되어 있으므로, 각 세마포어의 waiters 리스트의 맨 앞의 elem가 가장 우선순위가 높은 스레드가 됨
+	// 사실 각 세마포어에는 스레드가 하나밖에 없어서 굳이 맨 앞의 elem를 찾을 필요 없이 그냥 하나 찾아도 가능
+	struct thread *ta = list_entry(list_begin (wa), struct thread, elem);
+	struct thread *tb = list_entry(list_begin (wb), struct thread, elem);
+
+	return ta->priority > tb->priority; // 첫 번째 스레드의 우선순위가 두 번째 스레드의 우선순위보다 높으면 1을 반환 낮으면 0을 반환
+}
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Synchronization) --------------------------------------------------- */
+
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+bool
+cmp_donate_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	return list_entry(a, struct thread, donation_elem)->priority > list_entry(b, struct thread, donation_elem)->priority;
+}
+
+void
+donate_priority (void) {
+	int depth;
+	struct thread *curr = thread_current ();
+
+	for (depth = 0; depth < 8; depth++) {
+		if(!curr->wait_on_lock) break;
+		struct thread *holder = curr->wait_on_lock->holder;
+		holder->priority = curr->priority;
+		curr = holder;
+	}
+}
+
+void
+remove_with_lock(struct lock *lock) {
+	struct list_elem *e;
+	struct thread *curr = thread_current ();
+
+	for (e = list_begin (&curr->donations); e != list_end (&curr->donations); e = list_next (e)) {
+		struct thread *t = list_entry (e, struct thread, donation_elem);
+		if (t->wait_on_lock == lock)
+			list_remove (&t->donation_elem);
+	}
+}
+
+void
+refresh_priority(void) {
+	struct thread *curr = thread_current ();
+	curr->priority = curr->init_priority;
+
+	if (!list_empty (&curr->donations)) {
+		list_sort (&curr->donations, cmp_donate_priority, 0);
+
+		struct thread *front  = list_entry (list_front (&curr->donations), struct thread, donation_elem);
+		if (front->priority > curr->priority)
+			curr->priority = front->priority;
+	}
+}
+/* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
