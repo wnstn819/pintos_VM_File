@@ -66,7 +66,7 @@ initd (void *f_name) {
 
 	process_init ();
 
-	if (process_exec (f_name) < 0)
+	if (process_exec (f_name) < 0) // load가 실패한 경우(즉, 반환값이 -1인 경우) 오류
 		PANIC("Fail to launch initd\n");
 	NOT_REACHED ();
 }
@@ -161,34 +161,33 @@ error:
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
-process_exec (void *f_name) {
-	char *file_name = f_name;
+process_exec (void *f_name) { // 문자열 f_name이라는 인자를 입력 받음
+	char *file_name = f_name; // f_name은 문자열이지만 void로 넘겨 받았기 때문에 문자열로 인식하기 위해 자료형을 char *로 변환
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
-	struct intr_frame _if;
+	struct intr_frame _if; // 레지스터나 스택 포인터 같은 context switching을 위한 정보를 담고 있는 구조체
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 	/* We first kill the current context */
-	process_cleanup ();
+	process_cleanup (); // 새로운 실행 파일을 현재 스레드에 담기 전에 현재 프로세스에 담긴 컨텍스트 삭제(=현재 프로세스에 할당된 page directory와 switch information 삭제)
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (file_name, &_if); // _if와 file_name을 현재 프로세스에 load(성공하면 1을, 실패하면 0을 반환) -> 이 함수에 parsing 작업을 추가 구현해야 한다.
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
-	if (!success)
+	palloc_free_page (file_name); // file_name은 프로그램 파일 이름을 입력하기 위해 생성한 임시 변수이므로 load를 끝내면 해당 메모리를 반환
+	if (!success) // load에 실패하면 -1 반환
 		return -1;
 
 	/* Start switched process. */
-	do_iret (&_if);
+	do_iret (&_if); // load가 성공적으로 실행되면, 생성된 프로세스로 context switching을 실행
 	NOT_REACHED ();
 }
-
 
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
@@ -204,6 +203,13 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+	// argument passing 테스트를 위해 wait 기능을 흉내내기 위한 반복문 추가
+	for (int i = 0; i < 1000000000; i++) {
+
+	}
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 	return -1;
 }
 
@@ -320,6 +326,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
+/* 실행파일의 file_name을 적재해 실행하는 함수 */
 static bool
 load (const char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
@@ -329,6 +336,19 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+	char *argv[LOADER_ARGS_LEN]; // argument 배열 포인터 변수 선언
+	char *token, *save_ptr; // 토큰과 parsing하고 남은 문자열의 시작주소 포인터 변수 선언
+	int argc = 0; // argument 개수 변수 선언 및 0으로 초기화
+
+	token = strtok_r (file_name, " ", &save_ptr); // 토큰에 문자열을 parsing하고 나온 file_name 저장
+
+	while (token) { // 트큰이 NULL일 때까지 문자열 parsing 수행
+		argv[argc++] = token; // 0번째 argument부터 parsing하고 나온 인자 저장
+		token = strtok_r (NULL, " ", &save_ptr); // 토큰에 위에서 parsing하고 남은 문자열을 다시 parsing하여 저장(두 번째 parsing부터는 첫 번째 인자를 NULL로 설정)
+	}
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
@@ -336,9 +356,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current ());
 
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	file = filesys_open (argv[0]);
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", file_name);
+		printf ("load: %s: open failed\n", argv[0]);
 		goto done;
 	}
 
@@ -350,7 +370,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
-		printf ("load: %s: error loading executable\n", file_name);
+		printf ("load: %s: error loading executable\n", argv[0]);
 		goto done;
 	}
 
@@ -414,10 +434,12 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
 
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
 	success = true;
+
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+	argument_stack (argv, argc, if_); // parsing한 arguments를 user stack에 넣어주는 argument_stack() 함수 호출
+	hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // user stack을 16진수로 출력해주기 위한 hex_dump() 함수 호출
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 
 done:
 	/* We arrive here whether the load is successful or not. */
@@ -425,6 +447,45 @@ done:
 	return success;
 }
 
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+/* parsing한 arguments를 user stack에 넣어주는 함수 */
+/* if_->rsp는 현재 user stack에서 현재 위치를 가리키는 스택 포인터로, 맨 처음 if_->rsp는 0x47480000(USER_STACK)이다. */
+void
+argument_stack(char **argv, int argc, struct intr_frame *_if) {
+	char *arg_address[128];
+
+	// 1) 프로그램 이름, 인자 문자열 삽입
+	// 스택은 아래 방향으로 성장하므로 스택에 인자를 추가할 때 문자열을 오른쪽에서 왼쪽 방향으로(역방향으로) 삽입해야 한다.
+	for (int i = argc - 1; i >= 0; i--) { // 맨 끝 NULL 값(arg[4]) 제외하고, 가장 인덱스가 큰 argv부터 스택에 삽입
+		int argv_len = strlen(argv[i]);  // 각 인자의 크기 저장
+		_if->rsp -= (argv_len + 1); // 각 인자에서 인자 크기(argv_len)를 읽고, 그 크기만큼 rsp를 내림
+		memcpy(_if->rsp, argv[i], argv_len + 1); // 그 다음 빈 공간만큼 memcpy() 함수를 이용하여 스택에 삽입(각 인자에 sentinel이 포함이므로, argv_len + 1)
+		arg_address[i] = _if->rsp; // arg_address 배열에 현재 문자열 시작 주소 위치 저장
+    }
+
+	// 2) word-align 패딩 삽입
+	// 각 문자열을 삽입하고, 8바이트 단위로 정렬하기 위해 필요한 만큼 패딩을 추가한다.
+    while(_if->rsp % 8 != 0) { // _if->rsp 주소값을 8로 나눴을 때 나머지가 0일 때까지 반복문 수행
+        _if->rsp--; // _if->rsp -1 이동
+        *(uint8_t *)(_if->rsp) = 0; // _if.rsp가 가리키는 내용물을 0으로 채움(1바이트)
+	}
+
+	// 4) 각 인자 문자열의 주소 삽입
+	// 인자 문자열 삽입하면서 argv에 담아둔 각 문자열의 주소를 삽입한다.
+	for (int i = argc; i >= 0; i--) { // 
+        _if->rsp -= 8; // _if->rsp를 8 내림
+        if (i == argc) // i값이 argc값과 같으면
+            memset(_if->rsp, 0, 8); // _if->rsp에 0을 추가(sentinel 같은 느낌?)
+        else 
+            memcpy(_if->rsp, &arg_address[i], 8); // 나머지에는 arg_address 안에 들어있는 각 문자열의 주소를 스택에 삽입
+    }
+    
+	// 5) return address 삽입
+	// 다음 인스트럭션의 주소를 삽입해야 하는데, 지금은 프로세스를 생성하는 거라서 반환 주소가 없기 때문에 fake return address로 0을 추가한다.
+    _if->rsp -= 8; // _if->rsp를 8 내림
+	memset(_if -> rsp, 0, 8); // _if->rsp를 return address로 0을 추가  
+}
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 
 /* Checks whether PHDR describes a valid, loadable segment in
  * FILE and returns true if so, false otherwise. */

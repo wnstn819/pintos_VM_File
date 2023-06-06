@@ -10,4 +10,8 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (struct thread *next);
 
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+void argument_stack (char **argv, int argc, struct intr_frame *_if); // parsing한 arguments를 user stack에 넣어주는 함수
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+
 #endif /* userprog/process.h */
