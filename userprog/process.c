@@ -50,8 +50,15 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
 
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+	char *next_ptr;
+    strtok_r (file_name, " ", &next_ptr); // 인자로 들어오는 file_name parsing
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy); // 위에서 parsing한 파일 이름을 새로 생성할 스레드 이름으로 지정
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
 	return tid;
@@ -206,7 +213,7 @@ process_wait (tid_t child_tid UNUSED) {
 
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 	// argument passing 테스트를 위해 wait 기능을 흉내내기 위한 반복문 추가
-	for (int i = 0; i < 1000000000; i++) {
+	for (int i = 0; i < 200000000; i++) {
 
 	}
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
@@ -438,7 +445,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 	argument_stack (argv, argc, if_); // parsing한 arguments를 user stack에 넣어주는 argument_stack() 함수 호출
-	hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // user stack을 16진수로 출력해주기 위한 hex_dump() 함수 호출
+	// hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // user stack을 16진수로 출력해주기 위한 hex_dump() 함수 호출
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 
 done:
@@ -470,7 +477,7 @@ argument_stack(char **argv, int argc, struct intr_frame *_if) {
         *(uint8_t *)(_if->rsp) = 0; // _if.rsp가 가리키는 내용물을 0으로 채움(1바이트)
 	}
 
-	// 4) 각 인자 문자열의 주소 삽입
+	// 3) 각 인자 문자열의 주소 삽입
 	// 인자 문자열 삽입하면서 argv에 담아둔 각 문자열의 주소를 삽입한다.
 	for (int i = argc; i >= 0; i--) { // 
         _if->rsp -= 8; // _if->rsp를 8 내림
@@ -480,10 +487,14 @@ argument_stack(char **argv, int argc, struct intr_frame *_if) {
             memcpy(_if->rsp, &arg_address[i], 8); // 나머지에는 arg_address 안에 들어있는 각 문자열의 주소를 스택에 삽입
     }
     
-	// 5) return address 삽입
+	// 4) return address 삽입
 	// 다음 인스트럭션의 주소를 삽입해야 하는데, 지금은 프로세스를 생성하는 거라서 반환 주소가 없기 때문에 fake return address로 0을 추가한다.
     _if->rsp -= 8; // _if->rsp를 8 내림
 	memset(_if -> rsp, 0, 8); // _if->rsp를 return address로 0을 추가  
+
+	// 5) 인자의 개수와 argv 시작 주소를 각각 rdi와 rsi에 저장
+	_if->R.rdi = argc; // rdi에 인자의 개수 저장
+    _if->R.rsi = _if->rsp + 8; // 스택에 마지막에 추가한 fake address를 담기 직전의 주소가 argv에 시작 주소로 설정되어 있으므로, rsi에 현재 스택 포인터 rsp에 8만큼 더한 값 저장
 }
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 

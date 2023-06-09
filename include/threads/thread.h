@@ -103,6 +103,10 @@ struct thread {
 	struct list_elem donation_elem; // 스레드가 다른 스레드가 점유하고 있는 lock을 요청했을 때, 다른 스레드에게 priority를 기부하면서 해당 스레드의 donations에 들어갈 때 사용되는 리스트 elem 선언
 /* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	int exit_status; // 스레드 종료 상태 저장 변수 선언(0이면 정상 종료 상태)
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
