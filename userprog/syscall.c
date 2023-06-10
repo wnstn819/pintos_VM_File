@@ -21,6 +21,7 @@ static struct file *find_file_by_fd (int fd); // fd로 파일을 찾는 함수 �
 void remove_file_from_fdt (int fd); // 파일 디스크립터 테이블에서 현재 스레드를 제거하는 함수 선언
 void halt (void); // 핀토스 종료 시스템 콜 함수 선언
 void exit (int status); // 현재 프로세스를 종료시키는 시스템 콜 함수 선언
+tid_t fork(const char *thread_name, struct intr_frame *f);
 int exec (const char *cmd_line); // 현재 프로세스를 새로운 프로세스로 덮어 씌워 실행하는 시스템 콜 함수 선언
 int wait (int pid); // 자식 프로세스가 종료될 때까지 대기하고, 정상적으로 종료되었는지 상태를 확인하는 시스템 콜 함수 선언
 bool create (const char *file, unsigned initial_size); // 파일을 생성하는 시스템 콜 함수 선언
@@ -61,6 +62,8 @@ syscall_init (void) {
 	 * mode stack. Therefore, we masked the FLAG_FL. */
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+
+	lock_init(&filesys_lock);
 }
 
 /* The main system call interface */
@@ -76,13 +79,11 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_EXIT :
 			exit (f->R.rdi);
 			break;
-		// case SYS_FORK :
-		// 	f->R.rax = fork (f->R.rdi);
-		// 	break;
+		case SYS_FORK :
+			f->R.rax = fork (f->R.rdi, f);
+			break;
 		case SYS_EXEC :
-			if (exec(f->R.rdi) == -1) {
-				exit(-1);
-			}
+			f->R.rax = exec(f->R.rdi);
 			break;
 		case SYS_WAIT :
 			f->R.rax = wait (f->R.rdi);
@@ -194,6 +195,11 @@ exit (int status) {
 	thread_exit (); // 스레드 종료
 }
 
+tid_t
+fork(const char *thread_name, struct intr_frame *f) {
+	return process_fork(thread_name, f);
+}
+
 /* 현재 프로세스를 새로운 프로세스로 덮어 씌워 실행하는 시스템 콜 함수 */
 int
 exec (const char *file) {
@@ -208,11 +214,8 @@ exec (const char *file) {
 
 	// 복사한 파일 이름을 인자로 process_exec() 함수를 호출하고, load에 실패한 경우 -1 반환
 	if (process_exec (fn_copy) == -1) {
-		return -1;
+		exit(-1);
 	}
-	
-	NOT_REACHED ();
-	return 0;
 }
 
 /* 자식 프로세스가 종료될 때까지 대기하고, 정상적으로 종료되었는지 상태를 확인하는 시스템 콜 함수 */
@@ -278,12 +281,25 @@ read (int fd, void *buffer, unsigned size) {
 /* 열린 파일의 데이터를 기록하는 시스템 콜 함수 */
 int
 write (int fd, const void *buffer, unsigned size) {
-	// fd가 1이면, putbuf() 함수를 이용하여 한 번 호출하여 가능한 모든 buffer 데이터를 한 번에 콘솔에 쓰기
-    if (fd == 1) {
-        putbuf (buffer, size); 
-    }
-
-    return size;
+	check_address(buffer);
+	int bytes_write = 0;
+	if (fd == 1)
+	{
+		putbuf(buffer, size);
+		bytes_write = size;
+	}
+	else
+	{
+		if (fd < 2)
+			return -1;
+		struct file *file = find_file_by_fd(fd);
+		if (file == NULL)
+			return -1;
+		lock_acquire(&filesys_lock);
+		bytes_write = file_write(file, buffer, size);
+		lock_release(&filesys_lock);
+	}
+	return bytes_write;
 }
 
 /* 열린 파일의 위치(offset)를 이동하는 시스템 콜 함수 */

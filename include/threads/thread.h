@@ -5,6 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
+#define USERPROG
+#define FILESYS
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -112,6 +115,14 @@ struct thread {
 	int exit_status; // 스레드 종료 상태 저장 변수 선언(0이면 정상 종료 상태)
 	struct file **fdt; // 
 	int fd_idx; // 
+	struct thread *parent;
+	struct intr_frame parent_if;
+	struct list child_list;
+	struct list_elem child_elem;
+	struct semaphore load_sema; // 현재 스레드가 load되는 동안 부모가 기다리게 하기 위한 semaphore
+	struct semaphore exit_sema;
+	struct semaphore wait_sema;
+	struct file *running; // 현재 실행중인 파일
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* Shared between thread.c and synch.c. */

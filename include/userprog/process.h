@@ -12,6 +12,7 @@ void process_activate (struct thread *next);
 
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 void argument_stack (char **argv, int argc, struct intr_frame *_if); // parsing한 arguments를 user stack에 넣어주는 함수
+struct thread *get_child_process(int);
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 
 #endif /* userprog/process.h */

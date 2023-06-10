@@ -214,6 +214,13 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	// 현재 스레드의 자식으로 추가
+	list_push_back(&thread_current()->child_list, &t->child_elem);
+
+	t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+	if (t->fdt == NULL)
+		return TID_ERROR;
+
 	/* Add to run queue. */
 	thread_unblock (t);
 /* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling --------------------------------------------------- */
@@ -448,6 +455,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->wait_on_lock = NULL;// 현재 스레드가 얻기 위해 대기 하고 있는 lock의 주소로 이동하기 위한 lock 자료구조의 주소를 저장하는 포인터 변수 초기화
 	list_init (&t->donations); // 스레드가 점유하고 있는 lock을 요청할 때 우선순위를 기부해준 스레드를 저장하기 위한 리스트 초기화
 /* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
+
+	t->exit_status = 0;
+	t->fd_idx = 2;
+	sema_init(&t->load_sema, 0);
+	sema_init(&t->exit_sema, 0);
+	sema_init(&t->wait_sema, 0);
+	list_init(&(t->child_list));
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
