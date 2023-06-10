@@ -4,7 +4,7 @@ Kernel command line: -q -f put sm-full run sm-full
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
-Calibrating timer...  105,472,000 loops/s.
+Calibrating timer...  65,433,600 loops/s.
 hd0:0: detected 313 sector (156 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 106 sector (53 kB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -14,14 +14,25 @@ Putting 'sm-full' into the file system...
 Executing 'sm-full':
 (sm-full) begin
 (sm-full) create "quux"
-sm-full: exit(-1)
-Execution of 'sm-full' complete.
-Timer: 190 ticks
-Thread: 30 idle ticks, 157 kernel ticks, 3 user ticks
+(sm-full) open "quux"
+Page fault at 0: not present error reading page in kernel context.
+Interrupt 0x0e (#PF Page-Fault Exception) at rip=800421cbc1
+ cr2=0000000000000000 error=               0
+rax 0000000000000000 rbx 0000000000000000 rcx 0000000000000010 rdx 0000000000000000
+rsp 000000800423feb0 rbp 000000800423fed0 rsi 0000000000000000 rdi 000000800423b038
+rip 000000800421cbc1 r8 0000000000000000  r9 0000000000000000 r10 0000000000000000
+r11 0000000000000202 r12 000000800421c8e7 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000246
+es: 001b ds: 001b cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:97 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217d31 0x800421c632 0x800421c7b1 0x8004208bed 0x800420900b 0x800421cec2 0x800421ca14 0x800421c826 0x400c61 0x400131 0x400e1a 0x400e63.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 88 ticks
+Thread: 30 idle ticks, 46 kernel ticks, 12 user ticks
 hd0:0: 0 reads, 0 writes
-hd0:1: 81 reads, 240 writes
+hd0:1: 107 reads, 264 writes
 hd1:0: 106 reads, 0 writes
-Console: 837 characters output
-Keyboard: 0 keys pressed
-Exception: 0 page faults
-Powering off...
+Console: 1795 characters output
+Key

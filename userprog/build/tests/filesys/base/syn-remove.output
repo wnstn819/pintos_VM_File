@@ -4,7 +4,7 @@ Kernel command line: -q -f put syn-remove run syn-remove
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
-Calibrating timer...  104,857,600 loops/s.
+Calibrating timer...  88,166,400 loops/s.
 hd0:0: detected 313 sector (156 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 109 sector (54 kB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -14,14 +14,25 @@ Putting 'syn-remove' into the file system...
 Executing 'syn-remove':
 (syn-remove) begin
 (syn-remove) create "deleteme"
-syn-remove: exit(-1)
-Execution of 'syn-remove' complete.
-Timer: 195 ticks
-Thread: 30 idle ticks, 163 kernel ticks, 2 user ticks
+(syn-remove) open "deleteme"
+Page fault at 0: not present error reading page in kernel context.
+Interrupt 0x0e (#PF Page-Fault Exception) at rip=800421cbc1
+ cr2=0000000000000000 error=               0
+rax 0000000000000000 rbx 0000000000000000 rcx 0000000000000010 rdx 0000000000000000
+rsp 000000800423feb0 rbp 000000800423fed0 rsi 0000000000000000 rdi 000000800423b038
+rip 000000800421cbc1 r8 0000000000000000  r9 0000000000000000 r10 0000000000000000
+r11 0000000000000216 r12 000000800421c8e7 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000246
+es: 001b ds: 001b cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:97 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217d31 0x800421c632 0x800421c7b1 0x8004208bed 0x800420900b 0x800421cec2 0x800421ca14 0x800421c826 0x400196 0x40108f 0x4010d8.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 86 ticks
+Thread: 30 idle ticks, 44 kernel ticks, 12 user ticks
 hd0:0: 0 reads, 0 writes
-hd0:1: 82 reads, 246 writes
+hd0:1: 108 reads, 261 writes
 hd1:0: 109 reads, 0 writes
-Console: 865 characters output
-Keyboard: 0 keys pressed
-Exception: 0 page faults
-Powering off...
+Console: 1815 characters output
+Key

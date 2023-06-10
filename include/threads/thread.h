@@ -28,6 +28,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+#define FDT_PAGES 3                       // 파일 디스크립터 테이블에 할당할 페이지 수
+#define FD_COUNT_LIMIT FDT_PAGES *(1 << 9) // 파일 디스크립터 테이블 인덱스 값 제한(최대 128)
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -105,6 +110,8 @@ struct thread {
 
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 	int exit_status; // 스레드 종료 상태 저장 변수 선언(0이면 정상 종료 상태)
+	struct file **fdt; // 
+	int fd_idx; // 
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* Shared between thread.c and synch.c. */

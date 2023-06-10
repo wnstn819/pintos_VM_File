@@ -1,80 +1,15 @@
 FAIL
-Test output failed to match any acceptable form.
-
-Acceptable output:
-  (rox-multichild) begin
-  (rox-multichild) open "child-rox"
-  (rox-multichild) read "child-rox"
-  (rox-multichild) write "child-rox"
-  (rox-multichild) exec "child-rox 5"
-  (child-rox) begin
-  (child-rox) try to write "child-rox"
-  (child-rox) exec "child-rox 4"
-  (child-rox) begin
-  (child-rox) try to write "child-rox"
-  (child-rox) exec "child-rox 3"
-  (child-rox) begin
-  (child-rox) try to write "child-rox"
-  (child-rox) exec "child-rox 2"
-  (child-rox) begin
-  (child-rox) try to write "child-rox"
-  (child-rox) exec "child-rox 1"
-  (child-rox) begin
-  (child-rox) try to write "child-rox"
-  (child-rox) try to write "child-rox"
-  (child-rox) end
-  child-rox: exit(12)
-  (child-rox) try to write "child-rox"
-  (child-rox) end
-  child-rox: exit(12)
-  (child-rox) try to write "child-rox"
-  (child-rox) end
-  child-rox: exit(12)
-  (child-rox) try to write "child-rox"
-  (child-rox) end
-  child-rox: exit(12)
-  (child-rox) try to write "child-rox"
-  (child-rox) end
-  child-rox: exit(12)
-  (rox-multichild) write "child-rox"
-  (rox-multichild) end
-  rox-multichild: exit(0)
-Differences in `diff -u' format:
-  (rox-multichild) begin
-  (rox-multichild) open "child-rox"
-- (rox-multichild) read "child-rox"
-- (rox-multichild) write "child-rox"
-- (rox-multichild) exec "child-rox 5"
-- (child-rox) begin
-- (child-rox) try to write "child-rox"
-- (child-rox) exec "child-rox 4"
-- (child-rox) begin
-- (child-rox) try to write "child-rox"
-- (child-rox) exec "child-rox 3"
-- (child-rox) begin
-- (child-rox) try to write "child-rox"
-- (child-rox) exec "child-rox 2"
-- (child-rox) begin
-- (child-rox) try to write "child-rox"
-- (child-rox) exec "child-rox 1"
-- (child-rox) begin
-- (child-rox) try to write "child-rox"
-- (child-rox) try to write "child-rox"
-- (child-rox) end
-- child-rox: exit(12)
-- (child-rox) try to write "child-rox"
-- (child-rox) end
-- child-rox: exit(12)
-- (child-rox) try to write "child-rox"
-- (child-rox) end
-- child-rox: exit(12)
-- (child-rox) try to write "child-rox"
-- (child-rox) end
-- child-rox: exit(12)
-- (child-rox) try to write "child-rox"
-- (child-rox) end
-- child-rox: exit(12)
-- (rox-multichild) write "child-rox"
-- (rox-multichild) end
-- rox-multichild: exit(0)
-+ rox-multichild: exit(-1)
+Kernel panic in run: PANIC at ../../userprog/exception.c:97 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217d31 0x800421c632 0x800421c7b1 0x8004208bed 0x800420900b 0x800421cec2 0x800421ca14 0x800421c826 0x40012f 0x4003c5 0x400e66
+Translation of call stack:
+0x0000008004217d31: debug_panic (lib/kernel/debug.c:32)
+0x000000800421c632: kill (userprog/exception.c:103)
+0x000000800421c7b1: page_fault (userprog/exception.c:159 (discriminator 12))
+0x0000008004208bed: intr_handler (threads/interrupt.c:352)
+0x000000800420900b: intr_entry (threads/intr-stubs.o:?)
+0x000000800421cec2: open (userprog/syscall.c:249)
+0x000000800421ca14: syscall_handler (userprog/syscall.c:97)
+0x000000800421c826: no_sti (userprog/syscall-entry.o:?)
+0x000000000040012f: (unknown)
+0x00000000004003c5: (unknown)
+0x0000000000400e66: (unknown)

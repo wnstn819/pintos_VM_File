@@ -51,8 +51,8 @@ process_create_initd (const char *file_name) {
 	strlcpy (fn_copy, file_name, PGSIZE);
 
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
-	char *next_ptr;
-    strtok_r (file_name, " ", &next_ptr); // 인자로 들어오는 file_name parsing
+	char *save_ptr;
+    strtok_r (file_name, " ", &save_ptr); // 인자로 들어오는 file_name parsing
 /* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
 
 	/* Create a new thread to execute FILE_NAME. */

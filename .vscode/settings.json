@@ -16,6 +16,8 @@
         "iosfwd": "c",
         "new": "c",
         "ostream": "c",
-        "streambuf": "c"
+        "streambuf": "c",
+        "stdbool.h": "c",
+        "interrupt.h": "c"
     }
 }
