@@ -78,46 +78,44 @@ initd (void *f_name) {
 	NOT_REACHED ();
 }
 
-/* Clones the current process as `name`. Returns the new process's thread id, or
- * TID_ERROR if the thread cannot be created. */
+/* 현재 프로세스를 복제하여 name이라는 이름의 새로운 프로세스를 만들고, 그 프로세스의 스레드 id를 반환한다.
+   만약, 스레드 생성에 실패하면 TID_ERROR를 반환한다. */
+/* 현재 프로세스를 복제하는 함수 */
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
-	/* Clone current thread to new thread.*/
-	// 현재 스레드의 parent_if에 복제해야 하는 if를 복사한다.
-	struct thread *cur = thread_current();
-	memcpy(&cur->parent_if, if_, sizeof(struct intr_frame));
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	// 현재 스레드의 parent_if에 복제해야 하는 if_ 복사
+	struct thread *cur = thread_current ();
+	memcpy (&cur->parent_if, if_, sizeof(struct intr_frame));
 
-	// 현재 스레드를 fork한 new 스레드를 생성한다.
-	tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, cur);
+	// __do_fork() 함수를 이용하여 현재 스레드를 복제한 새로운 스레드 생성하고, 생성된 스레드의 id인 tid를 반환
+	tid_t tid = thread_create (name, PRI_DEFAULT, __do_fork, cur);
+	
+	// 반환된 tid가 TID_ERROR인 경우 TID_ERROR 반환(=스레드가 제대로 생성되지 않은 경우)
 	if (tid == TID_ERROR)
 		return TID_ERROR;
 
-	// 자식이 로드될 때까지 대기하기 위해서 방금 생성한 자식 스레드를 찾는다.
-	struct thread *child = get_child_process(tid);
+	// 자식이 로드될 때까지 대기하기 위해서 방금 생성한 자식 스레드 검색
+	struct thread *child = get_child_process (tid);
 
-	// 현재 스레드는 생성만 완료된 상태이다. 생성되어서 ready_list에 들어가고 실행될 때 __do_fork 함수가 실행된다.
-	// __do_fork 함수가 실행되어 로드가 완료될 때까지 부모는 대기한다.
-	sema_down(&child->load_sema);
+	sema_down (&child->load_sema); // 자식이 로드가 완료될 때까지 부모는 대기
 
 	// 자식이 로드되다가 오류로 exit한 경우
 	if (child->exit_status == -2)
 	{
-		// 자식이 종료되었으므로 자식 리스트에서 제거한다.
-		// 이거 넣으면 간헐적으로 실패함 (syn-read)
-		list_remove(&child->child_elem);
-		// 자식이 완전히 종료되고 스케줄링이 이어질 수 있도록 자식에게 signal을 보낸다.
-		sema_up(&child->exit_sema);
-		// 자식 프로세스의 pid가 아닌 TID_ERROR를 반환한다.
-		return TID_ERROR;
+		list_remove (&child->child_elem); // 자식이 종료되었으므로 자식 리스트에서 제거
+		sema_up (&child->exit_sema); // 자식이 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 전송
+		return TID_ERROR; // TID_ERROR 반환
 	}
 
-	// 자식 프로세스의 pid를 반환한다.
-	return tid;
+	return tid; // 자식이 성공적으로 로드된 경우 자식의 tid 반환
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
  * pml4_for_each. This is only for the project 2. */
+/* 페이지 테이블을 복제하는 데 사용되는 함수 */
 static bool
 duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	struct thread *current = thread_current ();
@@ -126,6 +124,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
 	if (is_kernel_vaddr(va))
 		return true;
@@ -154,6 +153,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 		/* 6. TODO: if fail to insert page, do error handling. */
 		return false;
 	}
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	return true;
 }
@@ -171,14 +171,20 @@ __do_fork (void *aux) {
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
 	bool succ = true;
-	parent_if = &parent->parent_if;
+
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	parent_if = &parent->parent_if; // 인자로 전달 받은 부모 스레드의 parent_if 필드의 값을 parent_if에 할당
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-	if_.R.rax = 0;
+
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	if_.R.rax = 0; // 자식 프로세스의 리턴값 0으로 초기화
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* 2. Duplicate PT */
-	current->pml4 = pml4_create();
+	current->pml4 = pml4_create ();
 	if (current->pml4 == NULL)
 		goto error;
 
@@ -198,28 +204,29 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
-	// FDT 복사
-	for (int i = 0; i < FD_COUNT_LIMIT; i++)
-	{
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	// file_duplicate() 함수를 이용하여 파일 디스크립터 테이블 복사
+	for (int i = 0; i < FD_COUNT_LIMIT; i++) {
 		struct file *file = parent->fdt[i];
 		if (file == NULL)
 			continue;
 		if (file > 2)
-			file = file_duplicate(file);
+			file = file_duplicate (file);
 		current->fdt[i] = file;
 	}
 	current->fd_idx = parent->fd_idx;
 
-	// 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
-	sema_up(&current->load_sema);
-	process_init();
+	// 자식이 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
+	sema_up (&current->load_sema);
+	process_init ();
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
-		do_iret(&if_);
+		do_iret (&if_);
 error:
-	sema_up(&current->load_sema);
-	exit(-2);
+	sema_up (&current->load_sema);
+	exit (-2);
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
 /* Switch the current execution context to the f_name.
@@ -268,18 +275,19 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 
-	struct thread *child = get_child_process(child_tid);
-	if (child == NULL) // 자식이 아니면 -1을 반환한다.
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	struct thread *child = get_child_process (child_tid); // 자식 스레드 검색
+	
+	// 자식 스레드를 찾는데 실패한 경우 -1을 반환
+	if (child == NULL)
 		return -1;
 
-	// 자식이 종료될 때까지 대기한다. (process_exit에서 자식이 종료될 때 sema_up 해줄 것이다.)
-	sema_down(&child->wait_sema);
-	// 자식이 종료됨을 알리는 `wait_sema` signal을 받으면 현재 스레드(부모)의 자식 리스트에서 제거한다.
-	list_remove(&child->child_elem);
-	// 자식이 완전히 종료되고 스케줄링이 이어질 수 있도록 자식에게 signal을 보낸다.
-	sema_up(&child->exit_sema);
+	sema_down (&child->wait_sema); // 자식이 종료될 때까지 부모는 대기
+	list_remove (&child->child_elem); // 자식이 종료되었다는 wait_sema 시그널을 받으면 부모의 자식 리스트에서 자식을 삭제
+	sema_up (&child->exit_sema); // 자식 스레드가 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 전송
 
-	return child->exit_status; // 자식의 exit_status를 반환한다.
+	return child->exit_status; // 자식의 exit_status 반환
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -291,27 +299,21 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
-	// FDT의 모든 파일을 닫고 메모리를 반환한다.
-	for (int i = 2; i < FD_COUNT_LIMIT; i++)
-	{
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	// 파일 디스크립터 테이블의 모든 파일을 닫고 메모리를 반환
+	for (int i = 2; i < FD_COUNT_LIMIT; i++) {
 		if (curr->fdt[i] != NULL)
-			close(i);
+			close (i);
 	}
-	palloc_free_multiple(curr->fdt, FDT_PAGES);
-	file_close(curr->running); // 현재 실행 중인 파일도 닫는다.
 
-	process_cleanup();
+	palloc_free_multiple (curr->fdt, FDT_PAGES);
+	file_close (curr->running); // 현재 실행 중인 파일도 닫음
 
-	// for (struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e))
-	// {
-	// 	struct thread *child = list_entry(e, struct thread, child_elem);
-	// 	sema_up(&child->exit_sema);
-	// 	list_remove(e);
-	// }
-	// 자식이 종료될 때까지 대기하고 있는 부모에게 signal을 보낸다.
-	sema_up(&curr->wait_sema);
-	// 부모의 signal을 기다린다. 대기가 풀리고 나서 do_schedule(THREAD_DYING)이 이어져 다른 스레드가 실행된다.
-	sema_down(&curr->exit_sema);
+	process_cleanup (); // 프로세스를 클린업
+
+	sema_up (&curr->wait_sema); // 자식이 종료될 때까지 대기하고 있는 부모에게 자식이 종료되었다는 시그널 전송
+	sema_down (&curr->exit_sema); // 자식이 부모의 시그널을 기다렸다가, 대기가 풀리고 나면 다른 스레드가 실행
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
 /* Free the current process's resources. */
@@ -516,6 +518,11 @@ load (const char *file_name, struct intr_frame *if_) {
 		}
 	}
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	t->running = file; // 현재 스레드의 실행중인 파일 저장
+	file_deny_write(file); // 현재 실행 중인 파일을 수정하는 일이 발생하는 것을 방지하기 위해 실행 중인 파일에 대한 쓰기 작업을 거부하는 file_deny_write() 함수 호출
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 	/* Set up stack. */
 	if (!setup_stack (if_))
 		goto done;
@@ -532,7 +539,11 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	// file_close (file); // file_close()를 호출하여 작업을 수행하면 파일이 닫히면서 lock이 풀리므로, 이를 방지하기 위해 주석 처리
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 	return success;
 }
 
@@ -792,19 +803,23 @@ setup_stack (struct intr_frame *if_) {
 }
 #endif /* VM */
 
-// 자식 리스트에서 원하는 프로세스를 검색하는 함수
-struct thread *get_child_process(int pid)
-{
-	/* 자식 리스트에 접근하여 프로세스 디스크립터 검색 */
-	struct thread *cur = thread_current();
-	struct list *child_list = &cur->child_list;
-	for (struct list_elem *e = list_begin(child_list); e != list_end(child_list); e = list_next(e))
-	{
-		struct thread *t = list_entry(e, struct thread, child_elem);
-		/* 해당 pid가 존재하면 프로세스 디스크립터 반환 */
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+/* 자식이 로드될 때까지 대기하기 위해서 방금 생성한 자식 스레드를 자식 리스트에서 검색하는 함수 */
+struct
+thread *get_child_process (int pid) {
+	struct thread *cur = thread_current (); // 현재 스레드 저장
+	struct list *child_list = &cur->child_list; // 현재 스레드가 있는 자식 리스트 저장
+
+	// 자식 리스트에서 순차적으로 새로 생성한 스레드 검색
+	for (struct list_elem *e = list_begin (child_list); e != list_end (child_list); e = list_next (e)) {
+		struct thread *t = list_entry(e, struct thread, child_elem); // list_entry() 함수를 이용하여, 새로 생성된 정확한 스레드 검색
+
+		// 검색한 스레드의 id가 새로 생성한 스레드의 id와 같은 경우 해당 스레드 반환(해당 스레드가 새로 생성한 스레드)
 		if (t->tid == pid)
 			return t;
 	}
-	/* 리스트에 존재하지 않으면 NULL 리턴 */
+
+	// 자식 리스트에 새로 생성한 스레드가 존재하지 않는 경우 NULL 반환
 	return NULL;
 }
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */

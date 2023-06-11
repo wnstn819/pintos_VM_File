@@ -32,8 +32,8 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
-#define FDT_PAGES 3                       // 파일 디스크립터 테이블에 할당할 페이지 수
-#define FD_COUNT_LIMIT FDT_PAGES *(1 << 9) // 파일 디스크립터 테이블 인덱스 값 제한(최대 128)
+#define FDT_PAGES 2        // 파일 디스크립터 테이블에 할당할 페이지 수
+#define FD_COUNT_LIMIT 128 // 파일 디스크립터 테이블 인덱스 값 제한(최대 128)
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 /* A kernel thread or user process.
@@ -113,16 +113,16 @@ struct thread {
 
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 	int exit_status; // 스레드 종료 상태 저장 변수 선언(0이면 정상 종료 상태)
-	struct file **fdt; // 
-	int fd_idx; // 
-	struct thread *parent;
-	struct intr_frame parent_if;
-	struct list child_list;
-	struct list_elem child_elem;
-	struct semaphore load_sema; // 현재 스레드가 load되는 동안 부모가 기다리게 하기 위한 semaphore
-	struct semaphore exit_sema;
-	struct semaphore wait_sema;
-	struct file *running; // 현재 실행중인 파일
+	struct file **fdt; // 파일 디스크립터 테이블 변수 선언
+	int fd_idx; // 파일 디스크립터 테이블 인덱스 변수 선언
+	struct intr_frame parent_if; // 현재 스레드 if_ 선언
+	struct list child_list; // 자식 리스트 선언
+	struct list_elem child_elem; // 자식 리스트 element 선언
+	struct semaphore load_sema; // 현재 스레드가 load되는 동안 부모를 대기시키기 위한 세마포어 선언
+	struct semaphore exit_sema; // 자식 스레드가 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 보내기 위한 세마포언 선언 
+	struct semaphore wait_sema; // 자식 스레드가 종료될 때까지 대기하고 있는 부모에게 자식 스레드가 작업을 종료했다는 시그널을 보내기 위한 세마포어 선언
+	struct thread *parent; // 부모 스레드 변수 선언
+	struct file *running; // 현재 실행중인 파일 변수 선언
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* Shared between thread.c and synch.c. */

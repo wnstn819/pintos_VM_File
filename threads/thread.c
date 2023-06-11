@@ -214,12 +214,14 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	// 현재 스레드의 자식으로 추가
-	list_push_back(&thread_current()->child_list, &t->child_elem);
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	// 새로운 스레드를 생성하였으므로, 현재 스레드의 자식 리스트에 추가
+	list_push_back (&thread_current ()->child_list, &t->child_elem);
 
-	t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+	t->fdt = palloc_get_multiple (PAL_ZERO, FDT_PAGES);
 	if (t->fdt == NULL)
 		return TID_ERROR;
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 
 	/* Add to run queue. */
 	thread_unblock (t);
@@ -456,12 +458,15 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init (&t->donations); // 스레드가 점유하고 있는 lock을 요청할 때 우선순위를 기부해준 스레드를 저장하기 위한 리스트 초기화
 /* --------------------------------------------------- PROJECT1 : Threads - Priority Scheduling(Priority Invension) --------------------------------------------------- */
 
-	t->exit_status = 0;
-	t->fd_idx = 2;
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	t->exit_status = 0; // 스레드 종료 상태 저장 변수 초기화
+	t->fd_idx = 2; // 파일 디스크립터 테이블 인덱스 초기화
+	// 부모와 자식 간 통신을 위한 세마포어 초기화
 	sema_init(&t->load_sema, 0);
 	sema_init(&t->exit_sema, 0);
 	sema_init(&t->wait_sema, 0);
-	list_init(&(t->child_list));
+	list_init(&(t->child_list)); // 자식 리스트 초기화
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

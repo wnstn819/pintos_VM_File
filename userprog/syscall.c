@@ -21,7 +21,7 @@ static struct file *find_file_by_fd (int fd); // fd로 파일을 찾는 함수 �
 void remove_file_from_fdt (int fd); // 파일 디스크립터 테이블에서 현재 스레드를 제거하는 함수 선언
 void halt (void); // 핀토스 종료 시스템 콜 함수 선언
 void exit (int status); // 현재 프로세스를 종료시키는 시스템 콜 함수 선언
-tid_t fork(const char *thread_name, struct intr_frame *f);
+tid_t fork (const char *thread_name, struct intr_frame *f); // 자식 프로세스를 복제하고 실행시키는 시스템 콜 함수 선언
 int exec (const char *cmd_line); // 현재 프로세스를 새로운 프로세스로 덮어 씌워 실행하는 시스템 콜 함수 선언
 int wait (int pid); // 자식 프로세스가 종료될 때까지 대기하고, 정상적으로 종료되었는지 상태를 확인하는 시스템 콜 함수 선언
 bool create (const char *file, unsigned initial_size); // 파일을 생성하는 시스템 콜 함수 선언
@@ -100,9 +100,9 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_FILESIZE :
 			f->R.rax = filesize (f->R.rdi);
 			break;
-		// case SYS_READ :
-		// 	f->R.rax = read (f->R.rdi, f->R.rsi, f->R.rdx);
-		// 	break;
+		case SYS_READ :
+			f->R.rax = read (f->R.rdi, f->R.rsi, f->R.rdx);
+			break;
 		case SYS_WRITE :
 			f->R.rax = write (f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
@@ -138,7 +138,7 @@ check_address (void *addr) {
 /* 현재 프로세스의 파일 디스크립터 테이블에 파일을 추가하는 함수 */
 int
 add_file_to_fdt (struct file *file) {
-	struct thread *cur = thread_current (); // 현재 스레드 구조체 저장
+	struct thread *cur = thread_current (); // 현재 스레드 저장
 	struct file **fdt = cur->fdt; // 현재 스레드의 파일 디스크립터 테이블 저장
 
 	// FD_COUNT_LIMIT 범위를 넘지 않는 범위 안에서 빈 자리 탐색
@@ -171,13 +171,14 @@ struct file *find_file_by_fd (int fd) {
 /* 파일 디스크립터 테이블에서 현재 스레드를 제거하는 함수 */
 void
 remove_file_from_fdt (int fd) {
-	struct thread *cur = thread_current ();
+	struct thread *cur = thread_current (); // 현재 스레드 저장
 
+	// 파일 디스크립터 테이블에서 0보다 작지 않고, 인덱스 제한 값보다 같거나 큰 경우 리턴
 	if (fd < 0 || fd >= FD_COUNT_LIMIT) {
 		return;
 	}
 
-	cur->fdt[fd] = NULL;
+	cur->fdt[fd] = NULL; // 현재 스레드를 찾은 경우 현재 스레드 파일 디스크립터 테이블에 NULL 할당
 }
 
 /* 핀토스 종료 시스템 콜 함수 */
@@ -195,9 +196,10 @@ exit (int status) {
 	thread_exit (); // 스레드 종료
 }
 
+/* 자식 프로세스를 복제하고 실행시키는 시스템 콜 함수 */
 tid_t
-fork(const char *thread_name, struct intr_frame *f) {
-	return process_fork(thread_name, f);
+fork (const char *thread_name, struct intr_frame *f) {
+	return process_fork (thread_name, f); // 현재 프로세스를 복제하는 process_fork() 함수 호출
 }
 
 /* 현재 프로세스를 새로운 프로세스로 덮어 씌워 실행하는 시스템 콜 함수 */
@@ -275,29 +277,76 @@ filesize (int fd) {
 /* 열린 파일의 데이터를 읽는 시스템 콜 함수 */
 int
 read (int fd, void *buffer, unsigned size) {
-	
+	check_address (buffer); // 인자로 받은 버퍼 포인터 주소 확인
+
+    off_t read_byte;
+    uint8_t *read_buffer = buffer;
+
+	// fd가 0인 경우(=STDIN) 키보드로부터 입력을 받아오는 input_getc 함수를 호출해 size만큼 값 read
+    if (fd == 0) {
+        char key;
+        for (read_byte = 0; read_byte < size; read_byte++) {
+            key = input_getc ();
+            *read_buffer++ = key;
+            if (key == '\0') {
+                break;
+            }
+        }
+    }
+
+	// fd가 1인 경우(=STDOUT) -1 반환
+    else if (fd == 1)
+    {
+        return -1;
+    }
+
+	// fd가 2 이상인 경우(=정상 fd) find_file_by_fd() 함수를 호출해 fd에 해당하는 파일 검색
+    else
+    {
+        struct file *read_file = find_file_by_fd (fd); // fd로 열린 파일 검색
+
+		// 열린 파일을 찾지 못하면, -1 반환
+        if (read_file == NULL)
+        {
+            return -1;
+        }
+
+        lock_acquire (&filesys_lock); // 열린 파일의 데이터를 읽고 버퍼에 저장하는 과정에서 다른 파일의 접근을 막기 위해 lock 획득
+        read_byte = file_read (read_file, buffer, size); // 파일에서 현재 위치부터 size 바이트 만큼 데이터를 읽어서 버퍼에 저장하는 file_read() 함수 호출
+        lock_release (&filesys_lock); // 열린 파일의 데이터를 읽고 버퍼에 저장을 완료하면 lock 해제
+    }
+    return read_byte;
 }
 
 /* 열린 파일의 데이터를 기록하는 시스템 콜 함수 */
 int
 write (int fd, const void *buffer, unsigned size) {
-	check_address(buffer);
+	check_address (buffer); // 인자로 받은 버퍼 포인터 주소 확인
+
 	int bytes_write = 0;
-	if (fd == 1)
-	{
-		putbuf(buffer, size);
+
+	// fd가 1인 경우(=STDOUT) 버퍼에 저장된 데이터를 화면에 출력하는 putbuf() 함수를 호출
+	if (fd == 1) {
+		putbuf (buffer, size);
 		bytes_write = size;
 	}
-	else
-	{
-		if (fd < 2)
+
+	else {
+		// fdrk 0인 경우(STDIN) -1 반환
+		if (fd < 2) {
 			return -1;
-		struct file *file = find_file_by_fd(fd);
-		if (file == NULL)
+		}
+
+		struct file *file = find_file_by_fd (fd); // fd로 열린 파일 검색
+
+		// 열린 파일을 찾지 못 한 경우 -1 반환
+		if (file == NULL) {
 			return -1;
-		lock_acquire(&filesys_lock);
-		bytes_write = file_write(file, buffer, size);
-		lock_release(&filesys_lock);
+		}
+
+		lock_acquire (&filesys_lock); // 열린 파일의 데이터를 기록하는 과정에서 다른 파일의 접근을 막기 위해 lock 획득
+		bytes_write = file_write (file, buffer, size); // 파일에서 현재 위치부터 size 바이트 만큼 버퍼에 있는 데이터를 기록
+		lock_release (&filesys_lock); // 열린 파일의 데이터 기록을 완료하면 lock 해제
 	}
 	return bytes_write;
 }
@@ -305,37 +354,40 @@ write (int fd, const void *buffer, unsigned size) {
 /* 열린 파일의 위치(offset)를 이동하는 시스템 콜 함수 */
 void
 seek (int fd, unsigned position) {
-	struct file *seek_file = find_file_by_fd (fd);
+	struct file *seek_file = find_file_by_fd (fd); // fd를 이용하여 열린 파일 검색
 
-	if (seek_file < 2) {
+	// 찾은 파일의 fd값이 2보다 작은 경우 리턴
+	if (seek_file <= 2) {
 		return;
 	}
 
-	return file_seek (seek_file, position);
+	return file_seek (seek_file, position); // 열린 파일을 찾았다면, file_seek() 함수를 이용하여 열린 파일의 위치를 position만큼 이동
 }
 
 /* 열린 파일의 위치(offset)를 알려주는 시스템 콜 함수 */
 unsigned
 tell (int fd) {
-	struct file *tell_file = find_file_by_fd (fd);
+	struct file *tell_file = find_file_by_fd (fd); // fd를 이용하여 열린 파일 검색
 
-	if (tell_file < 2) {
+	// 찾은 파일의 fd값이 2보다 작은 경우 리턴
+	if (tell_file <= 2) {
 		return;
 	}
 
-	return file_tell (tell_file);
+	return file_tell (tell_file); // 열린 파일을 찾았다면, file_tell() 함수를 이용하여 파일의 위치를 반환
 }
 
 /* 열린 파일을 닫는 시스템 콜 함수 */
 void
 close (int fd) {
-	struct file *close_file = find_file_by_fd (fd);
+	struct file *close_file = find_file_by_fd (fd); // fd를 이용하여 열린 파일 검색
 
+	// 파일을 찾는데 실패한 경우 리턴
 	if (close_file == NULL) {
 		return;
 	}
 
-	file_close (close_file);
-	remove_file_from_fdt (fd);
+	file_close (close_file); // file_close()로 파일 닫기
+	remove_file_from_fdt (fd); // remove_file_from_fdt() 함수를 이용하여 닫은 파일 삭제
 }
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
