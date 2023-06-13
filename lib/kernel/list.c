@@ -63,27 +63,25 @@ list_init (struct list *list) {
 	list->tail.next = NULL;
 }
 
-/* Returns the beginning of LIST.  */
+/* 리스트의 첫 번째 인자를 반환하는 함수  */
 struct list_elem *
 list_begin (struct list *list) {
 	ASSERT (list != NULL);
 	return list->head.next;
 }
 
-/* Returns the element after ELEM in its list.  If ELEM is the
-   last element in its list, returns the list tail.  Results are
-   undefined if ELEM is itself a list tail. */
+/* 현재 가리키고 있는 리스트의 인자의 다음 인자를 반환하는 함수
+   다음 인자가 리스트의 마지막 인자라면, 리스트의 마지막 인자를 반환합니다.
+   현재 인자가 리스트의 마지막 인자라면, 결과는 정의되지 않습니다. */
 struct list_elem *
 list_next (struct list_elem *elem) {
 	ASSERT (is_head (elem) || is_interior (elem));
 	return elem->next;
 }
 
-/* Returns LIST's tail.
-
-   list_end() is often used in iterating through a list from
-   front to back.  See the big comment at the top of list.h for
-   an example. */
+/* 리스트의 마지막 인자를 반환하는 함수
+   list_end() 함수는 종종 앞에서 뒤로 리스트를 반복할 때 사용합니다.
+   list.h 최상단에 있는 예제를 참고해라. */
 struct list_elem *
 list_end (struct list *list) {
 	ASSERT (list != NULL);
@@ -237,6 +235,7 @@ struct list_elem *e = list_pop_front (&list);
 ...do something with e...
 }
 */
+/* 리스트에서 인수로 들어온 인자를 삭제하고, 다음 인자를 반환하는 함수 */
 struct list_elem *
 list_remove (struct list_elem *elem) {
 	ASSERT (is_interior (elem));
@@ -415,6 +414,14 @@ list_sort (struct list *list, list_less_func *less, void *aux) {
 /* Inserts ELEM in the proper position in LIST, which must be
    sorted according to LESS given auxiliary data AUX.
    Runs in O(n) average case in the number of elements in LIST. */
+   /* 
+   새로운 ELEM를 비교를 진행하는 함수에 의해 정렬되어 리스트의 적절한 위치에 추가하는 함수
+   ELEM의 수를 가진 리스트에서 O(n)의 평균 시간복잡도를 가진다.
+   struct list *list : 리스트
+   struct list_elem *elem : 리스트 elem
+   list_less_func *less : 비교를 진행하는 함수
+   void *aux : 보조 데이터
+   */
 void
 list_insert_ordered (struct list *list, struct list_elem *elem,
 		list_less_func *less, void *aux) {

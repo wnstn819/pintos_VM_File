@@ -10,4 +10,12 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (struct thread *next);
 
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+void argument_stack (char **argv, int argc, struct intr_frame *_if); // parsing한 arguments를 user stack에 넣어주는 함수 선언
+/* -------------------------------------------------------- PROJECT2 : User Program - Argument Passing -------------------------------------------------------- */
+
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+struct thread *get_child_process (int pid); // 자식이 로드될 때까지 대기하기 위해서 방금 생성한 자식 스레드를 자식 리스트에서 검색하는 함수 선언
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 #endif /* userprog/process.h */

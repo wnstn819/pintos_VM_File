@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include "../syscall-nr.h"
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+#include <stdbool.h> // bool 타입을 사용하기 위한 헤더 추가
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 __attribute__((always_inline))
 static __inline int64_t syscall (uint64_t num_, uint64_t a1_, uint64_t a2_,
 		uint64_t a3_, uint64_t a4_, uint64_t a5_, uint64_t a6_) {
@@ -81,7 +85,7 @@ exit (int status) {
 }
 
 pid_t
-fork (const char *thread_name){
+fork (const char *thread_name) {
 	return (pid_t) syscall1 (SYS_FORK, thread_name);
 }
 
@@ -91,7 +95,7 @@ exec (const char *file) {
 }
 
 int
-wait (pid_t pid) {
+wait (int pid) {
 	return syscall1 (SYS_WAIT, pid);
 }
 

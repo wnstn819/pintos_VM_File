@@ -146,6 +146,10 @@ page_fault (struct intr_frame *f) {
 		return;
 #endif
 
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+	exit(-1); // Page fault 에러가 발생했을 때 -1을 반환하고 프로세스를 종료
+/* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
 	/* Count page faults. */
 	page_fault_cnt++;
 
@@ -157,4 +161,3 @@ page_fault (struct intr_frame *f) {
 			user ? "user" : "kernel");
 	kill (f);
 }
-

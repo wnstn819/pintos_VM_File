@@ -74,6 +74,7 @@ main (void) {
 	bss_init ();
 
 	/* Break command line into arguments and parse options. */
+	/* 명령줄을 arguments와 parse option으로 나눔 */
 	argv = read_command_line ();
 	argv = parse_options (argv);
 
@@ -119,6 +120,7 @@ main (void) {
 	printf ("Boot complete.\n");
 
 	/* Run actions specified on kernel command line. */
+	/* 커널 명령줄에 지정된 작업을 실행 */
 	run_actions (argv);
 
 	/* Finish up. */

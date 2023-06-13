@@ -1,0 +1,23 @@
+{
+    "files.associations": {
+        "array": "c",
+        "*.tcc": "c",
+        "memory": "c",
+        "istream": "c",
+        "tuple": "c",
+        "utility": "c",
+        "thread.h": "c",
+        "*.inc": "c",
+        "atomic": "c",
+        "fstream": "c",
+        "sstream": "c",
+        "vaddr.h": "c",
+        "exception": "c",
+        "iosfwd": "c",
+        "new": "c",
+        "ostream": "c",
+        "streambuf": "c",
+        "stdbool.h": "c",
+        "interrupt.h": "c"
+    }
+}
