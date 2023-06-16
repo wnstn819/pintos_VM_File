@@ -43,6 +43,14 @@ uninit_new (struct page *page, void *va, vm_initializer *init,
 }
 
 /* Initalize the page on first fault */
+/*
+처음으로 폴트가 발생한 페이지를 포기화 한다.
+uninit페이지의 멤버 변수인 vm_initializer와 aux를 가져오고, page_initializer 함수를 포인터로 호출
+
+P3_TODO : 
+
+*/
+
 static bool
 uninit_initialize (struct page *page, void *kva) {
 	struct uninit_page *uninit = &page->uninit;

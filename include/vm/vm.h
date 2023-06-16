@@ -2,6 +2,8 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "hash.h"
+
 
 enum vm_type {
 	/* page not initialized */
@@ -44,6 +46,7 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
+	struct hash_elem hash_elem;
 
 	/* Your implementation */
 
@@ -51,7 +54,7 @@ struct page {
 	 * Each function automatically detects the current union */
 	union {
 		struct uninit_page uninit;
-		struct anon_page anon;
+		struct anon_page anon; // anon_page 있음
 		struct file_page file;
 #ifdef EFILESYS
 		struct page_cache page_cache;
@@ -61,8 +64,9 @@ struct page {
 
 /* The representation of "frame" */
 struct frame {
-	void *kva;
-	struct page *page;
+	void *kva; // 커널 가상 주소
+	struct page *page; // 페이지 구조체를 담기 위한 멤버
+	struct list_elem elem; // frame_table을 위한 list_elem
 };
 
 /* The function table for page operations.
@@ -83,8 +87,11 @@ struct page_operations {
 
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
- * All designs up to you for this. */
+ * All designs up to you for this. 
+ * P3_TODO:
+ * */
 struct supplemental_page_table {
+	struct hash spt_hash;
 };
 
 #include "threads/thread.h"

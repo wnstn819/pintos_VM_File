@@ -657,6 +657,12 @@ static bool install_page (void *upage, void *kpage, bool writable);
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
+
+
+/*
+	실행파일로부터 세그먼트가 로드 되는 것을 구현, 이런 모든 페이지들은 지연적으로 로드될 것입니다. 즉 이 페이지들에 발생한 page fault를 커널이 다루게 된다는 의미
+	P3_TODO:
+*/
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
@@ -739,6 +745,13 @@ install_page (void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
+
+
+/*
+	P3_TODO: 지연 로드
+	실행파일로부터 세그먼트가 로드 되는 것을 구현, 이런 모든 페이지들은 지연적으로 로드될 것입니다. 즉 이 페이지들에 발생한 page fault를 커널이 다루게 된다는 의미
+	
+*/
 static bool
 lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
