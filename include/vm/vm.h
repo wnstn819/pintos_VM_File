@@ -46,10 +46,12 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
-	struct hash_elem hash_elem;
+	
 
 	/* Your implementation */
-
+	/* hash를 사용하기 위해 hash_elem을 추가 */
+	struct hash_elem hash_elem;
+    bool writable;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
@@ -88,7 +90,7 @@ struct page_operations {
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. 
- * P3_TODO:
+ * P3_TODO: SPT 자료구조를 Hash 테이블로 사용하기 위해 SPT에 넣어줌
  * */
 struct supplemental_page_table {
 	struct hash spt_hash;

@@ -1,8 +1,11 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
 #include "threads/malloc.h"
+#include "threads/thread.h"
+#include "threads/mmu.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "hash.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -36,6 +39,8 @@ page_get_type (struct page *page) {
 static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
+unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED);
+bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
@@ -70,22 +75,36 @@ err:
 }
 
 /* Find VA from spt and return page. On error, return NULL. */
+/*
+	va에 해당하는 구조체 페이지를 찾아 반환한다.
+*/
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
+	page = malloc(sizeof(struct page));
+    struct hash_elem *e;
 
-	return page;
+	// va에 해당하는 hash_elem 찾기
+    page->va = pg_round_down(va); // page의 시작 주소 할당
+	e = hash_find(&spt->spt_hash, &page->hash_elem);
+	free(page);
+
+	// 있으면 e에 해당하는 페이지 반환
+    return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
+/*
+	supplementary page table에 struct page를 삽입
+	가상 주소가 이미 supplementary page tabledp 존재하는지 확인
+	 - 존재하지 않으면 삽입
+*/
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
-	int succ = false;
 	/* TODO: Fill this function. */
-
-	return succ;
+	return hash_insert(&spt->spt_hash, &page->hash_elem) == NULL ? true : false; // 존재하지 않을 경우에만 삽입
 }
 
 void
@@ -125,7 +144,14 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	PANIC ("todo");
+	 void *kva = palloc_get_page(PAL_USER); // user pool에서 새로운 physical page를 가져온다.
+
+    if (kva == NULL)   // page 할당 실패 -> 나중에 swap_out 처리
+        PANIC("todo"); // OS를 중지시키고, 소스 파일명, 라인 번호, 함수명 등의 정보와 함께 사용자 지정 메시지를 출력
+
+	frame = malloc(sizeof(struct frame)); // 프레임 할당
+    frame->kva = kva;                      // 프레임 멤버 초기화
+
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
 	return frame;
@@ -177,7 +203,11 @@ vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
 
-	return vm_do_claim_page (page);
+	// spt에서 va에 해당하는 page 찾기
+    page = spt_find_page(&thread_current()->spt, va);
+    if (page == NULL)
+        return false;
+    return vm_do_claim_page(page);
 }
 
 /* Claim the PAGE and set up the mmu. */
@@ -196,15 +226,21 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 
-	return swap_in (page, frame->kva);
+	// 가상 주소와 물리 주소를 매핑
+    struct thread *current = thread_current();
+	bool writable = is_writable(current->pml4); // 🚨 Todo
+	pml4_set_page(current->pml4, page->va, frame->kva, writable);	
+
+    return swap_in(page, frame->kva); // uninit_initialize
 }
 
 /* Initialize new supplemental page table */
 /*
-	P3_TODO:
+	P3_TODO: 페이지를 초기화 한다. 새로운 프로세스가 시작될 때와 프로세스가 포크될 때 호출된다.
 */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	hash_init(&spt->spt_hash, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -218,4 +254,25 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+
+
+/* Returns a hash value for page p. */
+unsigned
+page_hash(const struct hash_elem *p_, void *aux UNUSED)
+{
+    const struct page *p = hash_entry(p_, struct page, hash_elem);
+    return hash_bytes(&p->va, sizeof p->va);
+}
+
+
+
+/* Returns true if page a precedes page b. */
+bool page_less(const struct hash_elem *a_,
+               const struct hash_elem *b_, void *aux UNUSED)
+{
+    const struct page *a = hash_entry(a_, struct page, hash_elem);
+    const struct page *b = hash_entry(b_, struct page, hash_elem);
+
+    return a->va < b->va;
 }
