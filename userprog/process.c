@@ -101,7 +101,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	sema_down (&child->load_sema); // 자식이 로드가 완료될 때까지 부모는 대기
 
 	// 자식이 로드되다가 오류로 exit한 경우
-	if (child->exit_status == -2)
+	if (child->exit_status == TID_ERROR)
 	{
 		list_remove (&child->child_elem); // 자식이 종료되었으므로 자식 리스트에서 제거
 		sema_up (&child->exit_sema); // 자식이 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 전송
@@ -225,7 +225,7 @@ __do_fork (void *aux) {
 		do_iret (&if_);
 error:
 	sema_up (&current->load_sema);
-	exit (-2);
+	exit (TID_ERROR);
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 }
 
@@ -246,6 +246,8 @@ process_exec (void *f_name) { // 문자열 f_name이라는 인자를 입력 받�
 
 	/* We first kill the current context */
 	process_cleanup (); // 새로운 실행 파일을 현재 스레드에 담기 전에 현재 프로세스에 담긴 컨텍스트 삭제(=현재 프로세스에 할당된 page directory와 switch information 삭제)
+
+	supplemental_page_table_init(&thread_current()->spt); // 초기화해주지 않으면 exec 실패함
 
 	/* And then load the binary */
 	success = load (file_name, &_if); // _if와 file_name을 현재 프로세스에 load(성공하면 1을, 실패하면 0을 반환) -> 이 함수에 parsing 작업을 추가 구현해야 한다.
@@ -744,7 +746,13 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-
+struct lazy_load_arg
+{
+	struct file *file;
+	off_t ofs;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+};
 
 
 /*
@@ -757,6 +765,18 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+
+	struct lazy_load_arg *lazy_load_arg = (struct lazy_load_arg *)aux;
+	file_seek(lazy_load_arg->file, lazy_load_arg->ofs);
+	if (file_read(lazy_load_arg->file, page->frame->kva, lazy_load_arg->read_bytes) != (int)(lazy_load_arg->read_bytes))
+	{
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	memset(page->frame->kva + lazy_load_arg->read_bytes, 0, lazy_load_arg->zero_bytes);
+	//free(lazy_load_arg);
+
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -788,15 +808,21 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct lazy_load_arg *lazy_load_arg = (struct lazy_load_arg *)malloc(sizeof(struct lazy_load_arg));
+		lazy_load_arg->file = file;
+		lazy_load_arg->ofs = ofs;
+		lazy_load_arg->read_bytes = page_read_bytes;
+		lazy_load_arg->zero_bytes = page_zero_bytes;
+
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+					writable, lazy_load_segment, lazy_load_arg))
 			return false;
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -811,6 +837,15 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+
+	if (vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, 1, NULL, NULL))
+	// writable: 값을 넣어야 하니 True
+	// lazy_load를 하지 않을 거니까 init과 aux는 NULL
+	{
+		success = vm_claim_page(stack_bottom); // 페이지 요청
+		if (success)
+			if_->rsp = USER_STACK;
+	}
 
 	return success;
 }
