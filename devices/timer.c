@@ -70,7 +70,7 @@ timer_calibrate (void) {
 	printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
 }
 
-/* Returns the number of timer ticks since the OS booted. */
+/* 현재의 ticks를 반환하는 함수 */
 int64_t
 timer_ticks (void) {
 	enum intr_level old_level = intr_disable ();
@@ -80,21 +80,22 @@ timer_ticks (void) {
 	return t;
 }
 
-/* Returns the number of timer ticks elapsed since THEN, which
-   should be a value once returned by timer_ticks(). */
+/* 특정 시간 이후부터 경과된 ticks를 반환하는 함수 */
 int64_t
 timer_elapsed (int64_t then) {
 	return timer_ticks () - then;
 }
 
-/* Suspends execution for approximately TICKS timer ticks. */
+/* 현재 스레드를 ticks만큼 재우는 함수 */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+	int64_t start = timer_ticks (); // 현재의 ticks를 start에 저장
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
+		if(timer_elapsed (start) < ticks) // start 이후부터 경과된 tick가 ticks보다 작은 경우
+			thread_sleep (start + ticks); // 현재 스레드를 깨워야 할 시간(start + ticks)까지 재우는 thread_sleep() 함수 호출
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -121,11 +122,18 @@ timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+
+/* 타이머 인터럽트 핸들러 함수 */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
+	if(get_next_tick_to_awake () <= ticks) { // 스레드의 tick이 현재의 ticks보다 작거나 같은 경우(=깨워야 할 스레드가 존재)
+		thread_wakeup (ticks); // 깨워야 할 스레드를 모두 깨워주는 thread_wakeup() 함수 호출
+	}
+/* ---------------------------------------------- PROJECT1 : Threads - Alarm Clock ---------------------------------------------- */
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
