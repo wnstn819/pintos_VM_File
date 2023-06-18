@@ -19,6 +19,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+
+
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -103,7 +105,7 @@ struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
-	page = malloc(sizeof(struct page));
+	page = (struct page *)malloc(sizeof(struct page));
     struct hash_elem *e;
 
 	// va에 해당하는 hash_elem 찾기
