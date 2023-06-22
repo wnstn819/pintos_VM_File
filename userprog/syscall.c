@@ -7,6 +7,7 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "vm/vm.h"
 
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 #include "include/threads/palloc.h" // EXEC 시스템 콜 함수에서 PAL_ZERO를 사용하기 위한 헤더 추가
@@ -72,6 +73,12 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
 	int system_call_number = f->R.rax; // 호출한 시스템 콜 번호를 저장하는 변수 선언
+
+#ifdef VM
+	thread_current()->rsp = f->rsp;
+#endif
+
+
 	switch(system_call_number) {
 		case SYS_HALT :
 			halt ();
@@ -234,8 +241,12 @@ wait (int pid) {
 /* 파일을 생성하는 시스템 콜 함수 */
 bool
 create (const char *file, unsigned initial_size) {
+
+	lock_acquire(&filesys_lock);
 	check_address (file); // 현재 가리키는 주소가 유저 영역의 주소인지 확인하여, 잘못된 주소이면 프로세스 종료
-	return filesys_create (file, initial_size); // 파일 이름(file)과 크기(initial_size)에 해당하는 파일 생성(성공하면 True, 실패하면 False 반환)
+	bool success = filesys_create(file, initial_size);
+	lock_release(&filesys_lock);
+	return success; // 파일 이름(file)과 크기(initial_size)에 해당하는 파일 생성(성공하면 True, 실패하면 False 반환)
 }
 
 /* 파일을 삭제하는 시스템 콜 함수 */
@@ -249,10 +260,12 @@ remove (const char *file) {
 int
 open (const char *file) {
 	check_address (file); // 현재 가리키는 주소가 유저 영역의 주소인지 확인하여, 잘못된 주소이면 프로세스 종료
+	lock_acquire(&filesys_lock);
 	struct file *open_file = filesys_open (file); // filesys_open() 함수를 이용하여 파일 오픈
 
 	// 파일을 찾지 못하거나 내부 메모리 할당에 실패하여 파일을 열 수 없는 경우 -1 반환
 	if (open_file == NULL) {
+		lock_release(&filesys_lock);
 		return -1;
 	}
 
@@ -262,6 +275,7 @@ open (const char *file) {
 	if (fd == -1) {
 		file_close (open_file);
 	}
+	lock_release(&filesys_lock);
 
 	return fd; // fd 반환
 }
@@ -317,6 +331,13 @@ read (int fd, void *buffer, unsigned size) {
         }
 
         lock_acquire (&filesys_lock); // 열린 파일의 데이터를 읽고 버퍼에 저장하는 과정에서 다른 파일의 접근을 막기 위해 lock 획득
+
+		struct page *page = spt_find_page(&thread_current()->spt, buffer);
+		if (page && !page->writable)
+		{
+			lock_release(&filesys_lock);
+			exit(-1);
+		}
         read_byte = file_read (read_file, buffer, size); // 파일에서 현재 위치부터 size 바이트 만큼 데이터를 읽어서 버퍼에 저장하는 file_read() 함수 호출
         lock_release (&filesys_lock); // 열린 파일의 데이터를 읽고 버퍼에 저장을 완료하면 lock 해제
     }

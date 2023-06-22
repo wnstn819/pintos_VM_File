@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "userprog/syscall.h"
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
 #include "filesys/directory.h"
@@ -103,8 +104,8 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	// 자식이 로드되다가 오류로 exit한 경우
 	if (child->exit_status == TID_ERROR)
 	{
-		list_remove (&child->child_elem); // 자식이 종료되었으므로 자식 리스트에서 제거
-		sema_up (&child->exit_sema); // 자식이 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 전송
+		//list_remove (&child->child_elem); // 자식이 종료되었으므로 자식 리스트에서 제거
+		//sema_up (&child->exit_sema); // 자식이 종료되고 스케줄링이 이어질 수 있도록 부모에게 시그널 전송
 		return TID_ERROR; // TID_ERROR 반환
 	}
 
@@ -217,7 +218,9 @@ __do_fork (void *aux) {
 	current->fd_idx = parent->fd_idx;
 
 	// 자식이 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
-	sema_up (&current->load_sema);
+	lock_acquire(&filesys_lock);
+	sema_up(&current->load_sema);
+	lock_release(&filesys_lock);
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
@@ -765,7 +768,6 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
-
 	struct lazy_load_arg *lazy_load_arg = (struct lazy_load_arg *)aux;
 	file_seek(lazy_load_arg->file, lazy_load_arg->ofs);
 	if (file_read(lazy_load_arg->file, page->frame->kva, lazy_load_arg->read_bytes) != (int)(lazy_load_arg->read_bytes))
