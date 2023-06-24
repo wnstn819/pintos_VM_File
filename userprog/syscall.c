@@ -35,6 +35,9 @@ void seek (int fd, unsigned position); // 열린 파일의 위치(offset)를 이
 unsigned tell (int fd); // 열린 파일의 위치(offset)를 알려주는 시스템 콜 함수 선언
 void close (int fd);  // 열린 파일을 닫는 시스템 콜 함수 선언
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
+
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -121,6 +124,12 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_CLOSE :
 			close (f->R.rdi);
+			break;
+		case SYS_MMAP:
+			f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+			break;
+		case SYS_MUNMAP:
+			munmap(f->R.rdi);
 			break;
 		default :
 			exit (-1);
@@ -417,3 +426,40 @@ close (int fd) {
 	remove_file_from_fdt (fd); // remove_file_from_fdt() 함수를 이용하여 닫은 파일 삭제
 }
 /* -------------------------------------------------------- PROJECT2 : User Program - System Call -------------------------------------------------------- */
+
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+
+	// addr이 없는 경우, addr이 page-aligned 되지 않은 경우
+	if (!addr || addr != pg_round_down(addr))
+		return NULL;
+
+	// 파일의 시작점(offset)이 page-align되지 않았을 때,
+	if (offset != pg_round_down(offset))
+		return NULL;
+
+	// addr과, addr + length가 user영역이 아닌 경우
+	if (!is_user_vaddr(addr) || !is_user_vaddr(addr + length))
+		return NULL;
+	
+	// addr에 이미 할당된 페이지가 있을 경우
+	if (spt_find_page(&thread_current()->spt, addr))
+		return NULL;
+
+	// fd에 해당하는 파일이 없는ㄱ ㅕㅇ우
+	struct file *f = find_file_by_fd(fd);
+	if (f == NULL)
+		return NULL;
+
+	// file의 길이가 0이거나 0보다 작은 경우
+	if (file_length(f) == 0 || (int)length <= 0)
+		return NULL;
+
+	return do_mmap(addr, length, writable, f, offset); // 파일이 매핑된 가상 주소 반환
+}
+
+void munmap(void *addr)
+{
+	do_munmap(addr);
+}

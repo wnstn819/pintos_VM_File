@@ -218,9 +218,7 @@ __do_fork (void *aux) {
 	current->fd_idx = parent->fd_idx;
 
 	// 자식이 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
-	lock_acquire(&filesys_lock);
 	sema_up(&current->load_sema);
-	lock_release(&filesys_lock);
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
@@ -253,7 +251,9 @@ process_exec (void *f_name) { // 문자열 f_name이라는 인자를 입력 받�
 	supplemental_page_table_init(&thread_current()->spt); // 초기화해주지 않으면 exec 실패함
 
 	/* And then load the binary */
+	lock_acquire(&filesys_lock);
 	success = load (file_name, &_if); // _if와 file_name을 현재 프로세스에 load(성공하면 1을, 실패하면 0을 반환) -> 이 함수에 parsing 작업을 추가 구현해야 한다.
+	lock_release(&filesys_lock);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // file_name은 프로그램 파일 이름을 입력하기 위해 생성한 임시 변수이므로 load를 끝내면 해당 메모리를 반환
@@ -749,21 +749,13 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-struct lazy_load_arg
-{
-	struct file *file;
-	off_t ofs;
-	uint32_t read_bytes;
-	uint32_t zero_bytes;
-};
-
 
 /*
 	P3_TODO: 지연 로드
 	실행파일로부터 세그먼트가 로드 되는 것을 구현, 이런 모든 페이지들은 지연적으로 로드될 것입니다. 즉 이 페이지들에 발생한 page fault를 커널이 다루게 된다는 의미
 	
 */
-static bool
+bool
 lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
@@ -840,12 +832,15 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
 
-	if (vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, 1, NULL, NULL))
-	// writable: 값을 넣어야 하니 True
-	// lazy_load를 하지 않을 거니까 init과 aux는 NULL
+	// 1) stack_bottom에 페이지를 하나 할당받는다.
+	if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1))
+	// VM_MARKER_0: 스택이 저장된 메모리 페이지임을 식별하기 위해 추가
+	// writable: argument_stack()에서 값을 넣어야 하니 True
 	{
-		success = vm_claim_page(stack_bottom); // 페이지 요청
+		// 2) 할당 받은 페이지에 바로 물리 프레임을 매핑한다.
+		success = vm_claim_page(stack_bottom);
 		if (success)
+			// 3) rsp를 변경한다. (argument_stack에서 이 위치부터 인자를 push한다.)
 			if_->rsp = USER_STACK;
 	}
 
