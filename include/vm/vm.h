@@ -71,6 +71,14 @@ struct frame {
 	struct page *page; // 페이지 구조체를 담기 위한 멤버
 	struct list_elem elem; // frame_table을 위한 list_elem
 };
+//** Project 3 - Swap in/ Swap Out **/
+struct slot
+{
+	struct page *page;
+	uint32_t slot_no;
+	struct list_elem swap_elem;
+};
+//** Project 3 - Swap in/ Swap Out **/
 
 /* The function table for page operations.
  * This is one way of implementing "interface" in C.
@@ -118,5 +126,13 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+
+
+//** Project 3 - Swap in/ Swap Out **/
+struct list swap_table;
+struct list frame_table;
+struct lock swap_table_lock;
+struct lock frame_table_lock;
+//** Project 3 - Swap in/ Swap Out **/
 
 #endif  /* VM_VM_H */

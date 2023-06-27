@@ -34,18 +34,31 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	file_page->file = lazy_load_arg->file;
 	file_page->ofs = lazy_load_arg->ofs;
 	file_page->read_bytes = lazy_load_arg->read_bytes;
+	file_page->zero_bytes = lazy_load_arg->zero_bytes;
 }
 
 /* Swap in the page by read contents from the file. */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
+	return lazy_load_segment(page, file_page);
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	if (pml4_is_dirty(thread_current()->pml4, page->va))
+	{
+		file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->ofs);
+		pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	}
+
+	// 페이지와 프레임의 연결 끊기
+	page->frame->page = NULL;
+	page->frame = NULL;
+	pml4_clear_page(thread_current()->pml4, page->va);
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -53,10 +66,12 @@ static void
 file_backed_destroy (struct page *page) {
 		// todo: 관련된 파일을 닫음으로써 file-backed page를 파괴합니다.
 	// todo: 내용이 변경되었다면(dirty) 변경 사항을 파일에 기록해야 합니다.
-
+	// page struct를 해제할 필요는 없습니다. (file_backed_destroy의 호출자가 해야 함)
+	struct file_page *file_page UNUSED = &page->file;
 	if (pml4_is_dirty(thread_current()->pml4, page->va))
 	{
-		file_write_at(page->file.file, page->va, page->file.read_bytes, page->file.ofs);
+		//** Project 3 - Swap in/ Swap Out **/
+		file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->ofs);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
 
@@ -64,8 +79,6 @@ file_backed_destroy (struct page *page) {
 	pml4_clear_page(thread_current()->pml4, page->va);
 
 	// page struct를 해제할 필요가 없습니다. (file_backed_destroy의 호출자가 해야 함)
-
-	struct file_page *file_page UNUSED = &page->file;
 }
 
 /* Do the mmap */
@@ -124,7 +137,8 @@ do_mmap (void *addr, size_t length, int writable,
 void
 do_munmap (void *addr) {
 
-	struct page *p = spt_find_page(&thread_current()->spt, addr);
+	struct supplemental_page_table *spt = &thread_current()->spt;
+	struct page *p = spt_find_page(spt, addr);
 	int count = p->mapped_page_count;
 	for (int i = 0; i < count; i++)
 	{
@@ -133,6 +147,6 @@ do_munmap (void *addr) {
 			//spt_remove_page(spt, p);
 
 		addr += PGSIZE;
-		p = spt_find_page(&thread_current()->spt, addr);
+		p = spt_find_page(spt, addr);
 	}
 }

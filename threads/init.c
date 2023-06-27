@@ -99,6 +99,7 @@ main (void) {
 	kbd_init ();
 	input_init ();
 #ifdef USERPROG
+	printf("System.\n");
 	exception_init ();
 	syscall_init ();
 #endif
