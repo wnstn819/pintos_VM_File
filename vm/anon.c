@@ -62,7 +62,6 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 /* Swap in the page by read contents from the swap disk. */
 static bool
 anon_swap_in (struct page *page, void *kva) {
-	printf("+++ anon Here;\n");
 	struct anon_page *anon_page = &page->anon;
 	disk_sector_t page_slot_no = anon_page->slot_no; // page가 저장된 slot_no
 	struct list_elem *e;
